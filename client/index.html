@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NexusAI — Intelligent Conversations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<div class="mobile-overlay" id="mobileOverlay"></div>
+
+<!-- Rename Modal -->
+<div class="modal-overlay hidden" id="renameModal">
+  <div class="modal">
+    <h3 class="modal-title">Rename Chat</h3>
+    <input type="text" id="renameInput" class="modal-input" placeholder="Enter new name..." maxlength="60"/>
+    <div class="modal-actions">
+      <button class="modal-btn cancel" onclick="closeRenameModal()">Cancel</button>
+      <button class="modal-btn confirm" onclick="confirmRename()">Rename</button>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="app">
+
+  <!-- AUTH SCREEN -->
+  <div class="auth-screen" id="authScreen">
+    <div class="auth-bg">
+      <div class="auth-orb auth-orb-1"></div>
+      <div class="auth-orb auth-orb-2"></div>
+      <div class="auth-orb auth-orb-3"></div>
+      <div class="auth-grid"></div>
+    </div>
+    <div class="auth-card">
+      <div class="auth-logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 32 32" fill="none"><path d="M16 2L28 8v16L16 30 4 24V8z" stroke="currentColor" stroke-width="1.5"/><circle cx="16" cy="16" r="5" fill="currentColor" opacity=".3"/><circle cx="16" cy="16" r="2" fill="currentColor"/></svg>
+        </div>
+        <span class="logo-text">NexusAI</span>
+      </div>
+      <div class="auth-form" id="loginForm">
+        <h2 class="auth-title">Welcome back</h2>
+        <p class="auth-sub">Sign in to continue your conversations</p>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email"/>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <div class="input-wrap">
+            <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password"/>
+            <button class="eye-btn" onclick="togglePass('loginPassword',this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="auth-error" id="loginError"></div>
+        <button class="btn-primary" onclick="handleLogin()">
+          <span>Sign In</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+        <p class="auth-switch">Don't have an account? <a href="#" onclick="showRegister()">Create one</a></p>
+      </div>
+      <div class="auth-form hidden" id="registerForm">
+        <h2 class="auth-title">Create account</h2>
+        <p class="auth-sub">Start your AI journey today</p>
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="regName" placeholder="John Doe" autocomplete="name"/>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="regEmail" placeholder="you@example.com" autocomplete="email"/>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <div class="input-wrap">
+            <input type="password" id="regPassword" placeholder="min. 8 characters" autocomplete="new-password"/>
+            <button class="eye-btn" onclick="togglePass('regPassword',this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="auth-error" id="registerError"></div>
+        <button class="btn-primary" onclick="handleRegister()">
+          <span>Create Account</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+        <p class="auth-switch">Already have an account? <a href="#" onclick="showLogin()">Sign in</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT APP -->
+  <div class="chat-app hidden" id="chatApp">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">
+            <svg viewBox="0 0 32 32" fill="none"><path d="M16 2L28 8v16L16 30 4 24V8z" stroke="currentColor" stroke-width="1.5"/><circle cx="16" cy="16" r="5" fill="currentColor" opacity=".3"/><circle cx="16" cy="16" r="2" fill="currentColor"/></svg>
+          </div>
+          <span class="logo-text">NexusAI</span>
+        </div>
+        <button class="sidebar-close" onclick="closeSidebar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <button class="new-chat-btn" onclick="newChat()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        <span>New Chat</span>
+      </button>
+
+      <!-- Search Box -->
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="searchInput" placeholder="Search conversations..." oninput="searchChats(this.value)"/>
+        <button class="search-clear hidden" id="searchClear" onclick="clearSearch()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="sidebar-section">
+        <span class="section-label" id="historyLabel">Recent Conversations</span>
+      </div>
+
+      <div class="chat-history" id="chatHistory"></div>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar" id="userAvatar">U</div>
+          <div class="user-details">
+            <span class="user-name" id="userName">User</span>
+            <span class="user-email" id="userEmail">user@email.com</span>
+          </div>
+          <button class="logout-btn" onclick="handleLogout()" title="Logout">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="chat-main">
+
+      <!-- Topbar (mobile) -->
+      <div class="topbar">
+        <button class="menu-btn" onclick="openSidebar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+        <div class="topbar-logo">
+          <div class="logo-icon sm">
+            <svg viewBox="0 0 32 32" fill="none"><path d="M16 2L28 8v16L16 30 4 24V8z" stroke="currentColor" stroke-width="1.5"/><circle cx="16" cy="16" r="2" fill="currentColor"/></svg>
+          </div>
+          <span>NexusAI</span>
+        </div>
+        <button class="new-chat-icon-btn" onclick="newChat()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+
+      <!-- Welcome -->
+      <div class="welcome-screen" id="welcomeScreen">
+        <div class="welcome-content">
+          <div class="welcome-icon">
+            <svg viewBox="0 0 32 32" fill="none"><path d="M16 2L28 8v16L16 30 4 24V8z" stroke="currentColor" stroke-width="1.5"/><circle cx="16" cy="16" r="5" fill="currentColor" opacity=".2"/><circle cx="16" cy="16" r="2" fill="currentColor"/></svg>
+          </div>
+          <h1 class="welcome-title">How can I help you<br/>today?</h1>
+          <p class="welcome-sub">Ask me anything — I'm ready to assist</p>
+          <div class="suggestion-grid">
+            <button class="suggestion-card" onclick="useSuggestion(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+              <span>Explain a complex concept</span>
+            </button>
+            <button class="suggestion-card" onclick="useSuggestion(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+              <span>Help me write some code</span>
+            </button>
+            <button class="suggestion-card" onclick="useSuggestion(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              <span>Draft an email or essay</span>
+            </button>
+            <button class="suggestion-card" onclick="useSuggestion(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+              <span>Summarize a document</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="messages-container hidden" id="messagesContainer">
+        <div class="messages" id="messages"></div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="input-area">
+        <div class="connection-status" id="connectionStatus"></div>
+
+        <!-- File preview -->
+        <div class="file-preview-bar hidden" id="filePreviewBar">
+          <div class="file-previews" id="filePreviews"></div>
+        </div>
+
+        <div class="input-box">
+          <!-- Attach button -->
+          <button class="attach-btn" onclick="triggerFileUpload()" title="Attach file or image">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+          <input type="file" id="fileInput" multiple accept=".pdf,.txt,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp" style="display:none" onchange="handleFileSelect(event)"/>
+
+          <textarea
+            id="messageInput"
+            placeholder="Message NexusAI..."
+            rows="1"
+            onkeydown="handleKeydown(event)"
+            oninput="autoResize(this)"
+          ></textarea>
+
+          <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+          </button>
+        </div>
+        <p class="input-hint">NexusAI can make mistakes. Verify important information.</p>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

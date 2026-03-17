@@ -9,7 +9,7 @@ import errorHandler from "./middlewares/errorHandler.js";
 const app = express();
 
 app.use(cors({
-  origin: "http://127.0.0.1:5500",
+  origin: process.env.CLIENT_URL || "http://127.0.0.1:5500",
   credentials: true
 }));
 

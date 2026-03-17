@@ -1,8 +1,8 @@
 'use strict';
 
 const CONFIG = {
-  API_BASE:    'http://localhost:4000',
-  SOCKET_URL:  'http://localhost:4000',
+  API_BASE:    'https://nexusai-mz2e.onrender.com',
+  SOCKET_URL:  'https://nexusai-mz2e.onrender.com',
   MAX_HISTORY: 50,
   TYPING_SPEED: 8, // ms per character
 };

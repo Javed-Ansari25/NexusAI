@@ -1,10 +1,8 @@
 'use strict';
 
 const CONFIG = {
-  // API_BASE:    'http://localhost:4000',
-  // SOCKET_URL:  'http://localhost:4000',
-  API_BASE:    '',
-  SOCKET_URL:  '',
+  API_BASE:    'http://localhost:4000',
+  SOCKET_URL:  'http://localhost:4000',
   MAX_HISTORY: 50,
   TYPING_SPEED: 8, // ms per character
 };

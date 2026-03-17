@@ -1,7 +1,7 @@
 import { Message } from "../models/message.model.js";
 import { Chat } from "../models/chat.model.js";
 import { getAIResponse } from "../services/ai.service.js";
-import { getIO } from "../socket/chat.socket.js";
+import { getIO } from "../Socket/chat.socket.js";
 import redisClient from "../config/redis.js";
 
 const MESSAGES_TTL = 60 * 5; // 5 min

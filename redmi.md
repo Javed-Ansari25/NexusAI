@@ -1,13 +1,14 @@
-# NexusAI — Intelligent Conversational Platform
+# NexusAI — AI-Powered Chat Backend
 
-> A production-ready, full-stack AI chat application with real-time messaging, multi-modal file analysis, Redis caching, rate limiting, and persistent chat history.
+> A production-ready REST + WebSocket backend for an intelligent conversational platform — built with Node.js, Express, MongoDB, Redis, and Groq API. Paired with a zero-dependency HTML/CSS/JS client.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?style=flat-square&logo=node.js)
 ![Express](https://img.shields.io/badge/Express-4.x-000000?style=flat-square&logo=express)
 ![MongoDB](https://img.shields.io/badge/MongoDB-6.x-47A248?style=flat-square&logo=mongodb)
 ![Redis](https://img.shields.io/badge/Redis-7.x-DC382D?style=flat-square&logo=redis)
 ![Socket.IO](https://img.shields.io/badge/Socket.IO-4.x-010101?style=flat-square&logo=socket.io)
-![Anthropic](https://img.shields.io/badge/Anthropic-Claude%20API-6B46C1?style=flat-square)
+![Groq](https://img.shields.io/badge/Groq-API-F55036?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
 
 ---
 
@@ -25,102 +26,118 @@
 - [Performance & Caching](#performance--caching)
 - [Rate Limiting](#rate-limiting)
 - [Real-Time Communication](#real-time-communication)
-- [Frontend Architecture](#frontend-architecture)
+- [Client (HTML/CSS/JS)](#client-htmlcssjs)
 - [Design Decisions](#design-decisions)
 
 ---
 
 ## Overview
 
-NexusAI is a full-stack conversational AI platform built for scale and production use. Users can register, maintain persistent chat histories, upload images and documents for AI analysis, and receive real-time responses powered by Anthropic's Claude API.
+NexusAI is a **backend-first** AI chat platform. The server handles authentication, persistent chat storage, real-time messaging via Socket.IO, Redis-backed caching, and intelligent rate limiting — all exposed through a clean REST API.
 
-The system is designed with **separation of concerns**, **defense-in-depth security**, and **performance-first caching** — making it suitable for real-world deployment and easy to extend.
+The client is a lightweight static interface built in plain **HTML, CSS, and vanilla JavaScript** — no framework, no build step, no bundler. It communicates with the backend exclusively through the documented API and WebSocket events.
+
+The system is designed around three principles:
+- **Security by default** — JWT in httpOnly cookies, per-account rate limiting, ownership checks on every resource
+- **Performance at the data layer** — Redis cache-aside for message history, invalidation on mutation
+- **Resilience** — every external dependency (Redis, Socket.IO) has a graceful fallback so the core flow never breaks
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                        Client                           │
-│         Vanilla JS SPA  ·  Socket.IO Client             │
-└──────────────────────┬──────────────────────────────────┘
-                       │  HTTP / WebSocket
-┌──────────────────────▼──────────────────────────────────┐
-│                   Express Server                        │
-│  Auth Routes  ·  AI Routes  ·  Socket.IO Server         │
-│                                                         │
-│  Middleware Stack:                                      │
-│  cors → cookieParser → express-json → protect →         │
-│  authLimiter / aiChatLimiter → controller               │
-└──────┬─────────────────────┬───────────────────────────┘
-       │                     │
-┌──────▼──────┐    ┌─────────▼──────────┐
-│   MongoDB   │    │    Redis Cache     │
-│  (Mongoose) │    │  Sessions · Chats  │
-│  Users      │    │  Rate Limit Keys   │
-│  Chats      │    └────────────────────┘
-│  Messages   │
-└──────┬──────┘
-       │
-┌──────▼───────────────┐
-│   Anthropic Claude   │
-│   API  (claude-3)    │
-│   Vision · Docs · Text│
-└──────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    Static Client                            │
+│           HTML  ·  CSS  ·  Vanilla JavaScript               │
+│     (Served by Express static OR opened directly)           │
+└───────────────────────┬─────────────────────────────────────┘
+                        │  HTTP REST  /  WebSocket
+┌───────────────────────▼─────────────────────────────────────┐
+│                    Express Server                           │
+│                                                             │
+│   Middleware Chain:                                         │
+│   cors → cookieParser → express.json →                      │
+│   protect (JWT) → rateLimiter → controller                  │
+│                                                             │
+│   ┌─────────────┐   ┌─────────────┐   ┌─────────────────┐  │
+│   │ auth routes │   │  ai routes  │   │  Socket.IO      │  │
+│   │ /api/auth/* │   │  /api/ai/*  │   │  chat.socket.js │  │
+│   └─────────────┘   └─────────────┘   └─────────────────┘  │
+└────────┬───────────────────┬───────────────────────────────┘
+         │                   │
+┌────────▼────────┐  ┌───────▼──────────┐
+│    MongoDB      │  │      Redis       │
+│   (Mongoose)    │  │                  │
+│                 │  │  Message cache   │
+│  Users          │  │  Chat list cache │
+│  Chats          │  │  Rate limit keys │
+│  Messages       │  └──────────────────┘
+└────────┬────────┘
+         │
+┌────────▼──────────────┐
+│      Groq API         │
+│   llama / mixtral     │
+│   Ultra-fast LLM      │
+└───────────────────────┘
 ```
 
 ---
 
 ## Features
 
-### Core
-- **JWT Authentication** — Secure cookie-based auth with `httpOnly`, `sameSite`, `secure` flags
-- **Persistent Chat History** — MongoDB-backed with per-user isolation
-- **Real-Time Messaging** — Socket.IO with graceful REST fallback
-- **AI-Powered Responses** — Anthropic Claude integration via `ai.service.js`
+### Backend
+- **JWT Authentication** — Cookie-based, `httpOnly`, `secure`, `sameSite=strict`
+- **Persistent Chat History** — MongoDB with per-user ownership isolation
+- **Real-Time Messaging** — Socket.IO rooms, graceful REST fallback
+- **Redis Caching** — Cache-aside pattern with TTL and mutation-triggered invalidation
+- **Rate Limiting** — `express-rate-limit` + `rate-limit-redis`; per-account, failed-attempts-only
+- **File Uploads** — Multer middleware, multipart support
+- **AI Service Layer** — Abstracted Groq wrapper in `ai.service.js`
 
-### Multi-Modal File Analysis
-- **Images** — Claude Vision API (PNG, JPG, GIF, WebP)
-- **PDFs** — Anthropic Document API (base64 encoded)
-- **Text Files** — Inline embedding (TXT, CSV, MD, JS, PY, and more)
-- Auto-generated prompts when no text accompanies a file
-
-### Performance
-- **Redis Caching** — Chat history cached with 5-minute TTL; invalidated on mutation
-- **Cache-Aside Pattern** — DB only queried on cache miss
-- **Lazy Session Loading** — Frontend session index in localStorage; messages fetched on demand
-
-### Security & Reliability
-- **Per-Account Rate Limiting** — `IP + email` keyed auth limiter (not IP-only)
-- **Failed-Attempts-Only Counting** — `skipSuccessfulRequests: true` on auth limiter
-- **Ownership Verification** — Every resource access validates `userId` ownership
-- **Redis-Backed Rate Limits** — Survives server restarts and horizontal scaling
-- **Graceful Degradation** — Redis failures never block requests; errors are logged
-
-### UX
-- **Typewriter Effect** — Character-by-character rendering for all AI responses
-- **Smart Auto-Scroll** — Stops auto-scrolling when user manually scrolls up
-- **Stop Generation** — Interrupt mid-response, saves partial content
-- **Edit & Resend** — Edit any past message; history is trimmed and resent
-- **Multi-User Isolation** — Logout clears DOM immediately; no session bleed between users
+### Client
+- **Zero Dependencies** — Pure HTML, CSS, JavaScript — no npm, no bundler
+- **SPA Behaviour** — Single page with auth screen and chat app, no page reloads
+- **Typewriter Effect** — Character-by-character AI response rendering
+- **Multi-Modal File Analysis** — Images (vision), PDFs (document API), text files
+- **Socket.IO + REST Fallback** — Seamless real-time with automatic fallback
+- **Smart Auto-Scroll** — Pauses when user scrolls up mid-stream, resumes at bottom
+- **Stop Generation** — Cancel mid-response; partial content is saved
+- **Edit & Resend** — Edit any past message, history is trimmed and resent
+- **Multi-User Isolation** — DOM cleared on logout, no session bleed between users
+- **Chat Search & Rename** — Sidebar search with highlight, inline rename
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| Runtime | Node.js 18+ | Server runtime |
-| Framework | Express.js | HTTP server & routing |
-| Database | MongoDB + Mongoose | Persistent storage |
-| Cache | Redis (ioredis) | Session cache, rate limits |
-| Real-Time | Socket.IO | WebSocket messaging |
-| AI | Anthropic Claude API | LLM + Vision + Document |
-| Auth | JWT + httpOnly cookies | Stateless auth |
-| Rate Limiting | express-rate-limit + rate-limit-redis | Abuse prevention |
-| File Upload | Multer | Multipart form handling |
-| Frontend | Vanilla JS (ES6+) | Zero-dependency SPA |
+### Backend
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `express` | 4.x | HTTP server & routing |
+| `mongoose` | 8.x | MongoDB ODM |
+| `ioredis` | 5.x | Redis client |
+| `socket.io` | 4.x | WebSocket server |
+| `groq-sdk` | latest | Groq LLM API client |
+| `jsonwebtoken` | 9.x | JWT sign & verify |
+| `bcryptjs` | 2.x | Password hashing |
+| `cookie-parser` | 1.x | Cookie middleware |
+| `multer` | 1.x | Multipart file uploads |
+| `express-rate-limit` | 7.x | Rate limiting middleware |
+| `rate-limit-redis` | 4.x | Redis store for rate limits |
+| `cors` | 2.x | Cross-origin resource sharing |
+| `dotenv` | 16.x | Environment variable loading |
+
+### Client
+
+| Technology | Purpose |
+|-----------|---------|
+| HTML5 | Page structure, semantic markup |
+| CSS3 | Styling, animations, responsive layout |
+| Vanilla JavaScript ES6+ | All interactivity, API calls, state management |
+| Socket.IO Client (CDN) | WebSocket connection |
+| Web APIs | `fetch` · `FileReader` · `navigator.clipboard` · `localStorage` |
 
 ---
 
@@ -129,41 +146,45 @@ The system is designed with **separation of concerns**, **defense-in-depth secur
 ```
 nexus-ai/
 │
-├── backend/
+├── backend/                          # Node.js server (primary codebase)
+│   │
 │   ├── config/
-│   │   ├── db.js                  # MongoDB connection with retry logic
-│   │   └── redis.js               # ioredis client with error handling
+│   │   ├── db.js                     # MongoDB connection with retry logic
+│   │   └── redis.js                  # ioredis client, error handling
 │   │
 │   ├── controllers/
-│   │   ├── auth.controller.js     # register, login, logout, getMe
-│   │   └── message.controller.js  # sendMessage, getChatHistory,
-│   │                              # deleteMessage, clearMessages
+│   │   ├── auth.controller.js        # register · login · logout · getMe
+│   │   └── message.controller.js     # sendMessage · getChatHistory
+│   │                                 # deleteMessage · clearMessages
 │   ├── middleware/
-│   │   ├── auth.middleware.js     # JWT protect middleware
-│   │   ├── rateLimiter.js         # aiChatLimiter, authLimiter
-│   │   └── upload.js              # Multer config
+│   │   ├── auth.middleware.js        # JWT verification (protect)
+│   │   ├── rateLimiter.js            # authLimiter · aiChatLimiter
+│   │   └── upload.js                 # Multer configuration
 │   │
 │   ├── models/
-│   │   ├── user.model.js          # User schema (bcrypt password hash)
-│   │   ├── chat.model.js          # Chat schema (title, messageCount)
-│   │   └── message.model.js       # Message schema (role, content, isError)
+│   │   ├── user.model.js             # User schema — bcrypt pre-save hook
+│   │   ├── chat.model.js             # Chat schema — title, messageCount
+│   │   └── message.model.js          # Message schema — role, content, isError
 │   │
 │   ├── routes/
-│   │   ├── auth.routes.js         # /api/auth/*
-│   │   └── message.routes.js      # /api/ai/*
+│   │   ├── auth.routes.js            # POST /register /login /logout · GET /me
+│   │   └── message.routes.js         # POST /chat · GET /history/:id
 │   │
 │   ├── services/
-│   │   └── ai.service.js          # Anthropic API wrapper
+│   │   └── ai.service.js             # Groq API wrapper
 │   │
 │   ├── socket/
-│   │   └── chat.socket.js         # Socket.IO setup, room management
+│   │   └── chat.socket.js            # Socket.IO init, room join/leave
 │   │
-│   └── app.js                     # Express app entry point
+│   ├── app.js                        # Express app, middleware chain
+│   ├── server.js                     # HTTP server entry point
+│   ├── .env.example                  # Environment variable template
+│   └── package.json
 │
-└── frontend/
-    ├── index.html                 # Single HTML shell
-    ├── app.js                     # All client-side logic (~1000 lines)
-    └── style.css                  # UI styles
+└── client/                           # Static HTML/CSS/JS — no build step
+    ├── index.html                    # App shell — auth screen + chat UI
+    ├── app.js                        # All client logic (~1100 lines)
+    └── style.css                     # Complete stylesheet
 ```
 
 ---
@@ -172,109 +193,125 @@ nexus-ai/
 
 ### Prerequisites
 
-- Node.js `>= 18.0.0`
-- MongoDB `>= 6.0` (local or Atlas)
-- Redis `>= 7.0` (local or Redis Cloud)
-- Anthropic API key
+- **Node.js** `>= 18.0.0`
+- **MongoDB** `>= 6.0` — [local](https://www.mongodb.com/try/download/community) or [Atlas](https://www.mongodb.com/atlas)
+- **Redis** `>= 7.0` — [local](https://redis.io/download) or [Redis Cloud](https://redis.io/cloud)
+- **Groq API Key** — [console.groq.com](https://console.groq.com)
 
-### Installation
+### 1. Clone & Install
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/yourusername/nexus-ai.git
-cd nexus-ai
-
-# 2. Install backend dependencies
-cd backend
+cd nexus-ai/backend
 npm install
-
-# 3. Set up environment variables
-cp .env.example .env
-# Edit .env with your values (see Environment Variables section)
-
-# 4. Start Redis (if running locally)
-redis-server
-
-# 5. Start the backend server
-npm run dev        # development (nodemon)
-npm start          # production
 ```
 
-### Frontend
-
-The frontend is plain HTML + JS — no build step required.
+### 2. Configure Environment
 
 ```bash
-# Option 1: Serve via the Express backend (recommended)
-# Place frontend/ files in the public/ folder served by Express
-# app.use(express.static('public'))
+cp .env.example .env
+# Fill in your values — see Environment Variables below
+```
 
-# Option 2: Open directly
-open frontend/index.html
+### 3. Start Services
+
+```bash
+# Redis (local)
+redis-server
+
+# MongoDB (local)
+mongod --dbpath /your/data/path
+
+# Backend — development (nodemon)
+npm run dev
+
+# Backend — production
+npm start
+```
+
+### 4. Open the Client
+
+```bash
+# Express serves client/ as static files automatically
+# Just open:
+http://localhost:4000
+
+# Or open client/index.html directly in any browser — also works
 ```
 
 ---
 
 ## Environment Variables
 
-Create a `.env` file in the `backend/` directory:
-
 ```env
-# ── Server ─────────────────────────────────────
+# ── Server ──────────────────────────────────────────
 PORT=4000
-NODE_ENV=development            # development | production
+NODE_ENV=development                # development | production
 
-# ── Database ───────────────────────────────────
+# ── Database ────────────────────────────────────────
 MONGODB_URI=mongodb://localhost:27017/nexusai
+# Atlas: mongodb+srv://<user>:<pass>@cluster.mongodb.net/nexusai
 
-# ── Redis ──────────────────────────────────────
+# ── Redis ────────────────────────────────────────────
 REDIS_URL=redis://localhost:6379
+# Redis Cloud: redis://:<password>@<host>:<port>
 
-# ── Authentication ─────────────────────────────
-JWT_SECRET=your_super_secret_jwt_key_min_32_chars
+# ── Authentication ───────────────────────────────────
+JWT_SECRET=your_super_secret_key_minimum_32_characters_long
 JWT_EXPIRES_IN=7d
-COOKIE_SECRET=your_cookie_secret
+COOKIE_SECRET=another_random_secret_for_cookies
 
-# ── Anthropic ──────────────────────────────────
-ANTHROPIC_API_KEY=sk-ant-...
+# ── Groq ─────────────────────────────────────────────
+GROQ_API_KEY=gsk_...
 
-# ── CORS ───────────────────────────────────────
-CLIENT_URL=http://localhost:3000
+# ── CORS ─────────────────────────────────────────────
+CLIENT_URL=http://localhost:4000
 ```
 
-> **Never commit `.env` to version control.** Add it to `.gitignore`.
+> ⚠️ Never commit `.env` to version control. It is in `.gitignore` by default.
 
 ---
 
 ## API Reference
 
+### Base URL
+```
+http://localhost:4000
+```
+
 ### Authentication — `/api/auth`
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `POST` | `/register` | ✗ | Register new user |
-| `POST` | `/login` | ✗ | Login, sets cookie |
-| `POST` | `/logout` | ✓ | Logout, clears cookie |
-| `GET` | `/me` | ✓ | Get current user |
+| `POST` | `/api/auth/register` | ✗ | Create account |
+| `POST` | `/api/auth/login` | ✗ | Login, sets httpOnly cookie |
+| `POST` | `/api/auth/logout` | ✓ | Logout, clears cookie |
+| `GET` | `/api/auth/me` | ✓ | Get current user |
 
-#### POST `/api/auth/register`
+#### `POST /api/auth/register`
 ```json
 // Request
-{ "name": "Alice", "email": "alice@example.com", "password": "min8chars" }
+{ "name": "Alice", "email": "alice@example.com", "password": "securepass123" }
 
-// Response 201
-{ "success": true, "user": { "_id": "...", "name": "Alice", "email": "alice@example.com" } }
+// 201 Created
+{ "success": true, "user": { "_id": "64f1...", "name": "Alice", "email": "alice@example.com" } }
+
+// 400 Bad Request
+{ "success": false, "message": "Email already in use." }
 ```
 
-#### POST `/api/auth/login`
+#### `POST /api/auth/login`
 ```json
 // Request
-{ "email": "alice@example.com", "password": "min8chars" }
+{ "email": "alice@example.com", "password": "securepass123" }
 
-// Response 200 — sets httpOnly cookie
-{ "success": true, "user": { "_id": "...", "name": "Alice", "email": "alice@example.com" } }
+// 200 OK  →  sets cookie: token=<jwt>  (httpOnly, secure, sameSite=strict)
+{ "success": true, "user": { "_id": "64f1...", "name": "Alice", "email": "alice@example.com" } }
 
-// Response 429 — rate limited
+// 401 Unauthorized
+{ "success": false, "message": "Invalid email or password." }
+
+// 429 Too Many Requests  (7 failed attempts from same IP + email)
 { "success": false, "message": "Too many failed attempts. 9 minutes baad try karo.", "retryAfter": 540 }
 ```
 
@@ -282,131 +319,139 @@ CLIENT_URL=http://localhost:3000
 
 ### AI Chat — `/api/ai`
 
-All routes require authentication (`protect` middleware).
+All routes require a valid JWT cookie (`protect` middleware).
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `POST` | `/chat` | ✓ | Send message, get AI reply |
-| `GET` | `/history/:chatId` | ✓ | Get chat message history |
-| `DELETE` | `/message/:messageId` | ✓ | Delete a single message |
-| `DELETE` | `/history/:chatId` | ✓ | Clear all messages in chat |
+| `POST` | `/api/ai/chat` | ✓ | Send message, receive AI reply |
+| `GET` | `/api/ai/history/:chatId` | ✓ | Fetch message history |
+| `DELETE` | `/api/ai/message/:messageId` | ✓ | Delete a single message |
+| `DELETE` | `/api/ai/history/:chatId` | ✓ | Clear all messages in a chat |
 
-#### POST `/api/ai/chat`
+#### `POST /api/ai/chat`
 
-**JSON request (text only):**
+Accepts **JSON** (text only) or **multipart/form-data** (with files).
+
 ```json
+// JSON request — chatId optional (omit to create new chat)
 { "message": "Explain Redis caching.", "chatId": "64f1a2b3..." }
+
+// 201 Created
+{
+  "success": true,
+  "chat":        { "_id": "64f1...", "title": "Explain Redis caching.", "messageCount": 4 },
+  "userMessage": { "_id": "64f2...", "role": "user",      "content": "Explain Redis caching." },
+  "aiMessage":   { "_id": "64f3...", "role": "assistant", "content": "Redis is an in-memory..." }
+}
 ```
 
-**Multipart request (with files):**
 ```
+// Multipart request
 Content-Type: multipart/form-data
-Fields: message, chatId (optional)
-Files:  files[] (images, PDFs, text files)
+
+Fields:  message  (string, optional if files present)
+         chatId   (string, optional)
+Files:   files[]  (image/* | application/pdf | text/*)
 ```
 
-**Response 201:**
+> If `chatId` is omitted, the backend creates a new Chat document. The client must read `data.chat._id` from the response and send it on all subsequent messages to continue the same conversation.
+
+#### `GET /api/ai/history/:chatId`
 ```json
+// 200 OK
 {
   "success": true,
-  "chat": { "_id": "64f1a2b3...", "title": "Explain Redis caching.", "messageCount": 2 },
-  "userMessage": { "_id": "...", "role": "user", "content": "Explain Redis caching." },
-  "aiMessage":   { "_id": "...", "role": "assistant", "content": "Redis is an in-memory..." }
-}
-```
-
-> If `chatId` is omitted, a new chat is created automatically. The response always includes the `chat` object with its `_id` for the client to persist.
-
-#### GET `/api/ai/history/:chatId`
-```json
-// Response 200
-{
-  "success": true,
+  "source": "cache",
   "messages": [
-    { "_id": "...", "role": "user",      "content": "Hello",    "createdAt": "..." },
-    { "_id": "...", "role": "assistant", "content": "Hi there", "createdAt": "..." }
-  ],
-  "source": "cache"   // "cache" | "database"
+    { "_id": "...", "role": "user",      "content": "Hello",     "createdAt": "2024-01-15T10:00:00Z" },
+    { "_id": "...", "role": "assistant", "content": "Hi there!", "createdAt": "2024-01-15T10:00:01Z" }
+  ]
 }
+
+// 404 — wrong userId or chat doesn't exist
+{ "success": false, "message": "Chat not found" }
 ```
 
 ---
 
 ## Security
 
-### Authentication Flow
+### JWT Auth Flow
 
 ```
-Client                          Server
-  │                               │
-  ├── POST /login ──────────────► │
-  │                               ├── checkAuthLimit(IP + email)
-  │                               ├── User.findOne({ email })
-  │                               ├── bcrypt.compare(password, hash)
-  │                               ├── clearFailedAttempts()  ← on success
-  │                               ├── sign JWT
-  │   ◄── Set-Cookie: token ──────┤   httpOnly, secure, sameSite=strict
-  │                               │
-  ├── GET /api/auth/me ─────────► │
-  │   Cookie: token               ├── verify JWT
-  │                               ├── User.findById(payload.id)
-  │   ◄── { user } ──────────────┤
+Client                              Server
+  │                                   │
+  │── POST /api/auth/login ──────────►│
+  │   { email, password }             │
+  │                                   ├─ 1. Check rate limit  (IP + email key)
+  │                                   ├─ 2. User.findOne({ email })
+  │                                   ├─ 3. bcrypt.compare(password, hash)
+  │                                   │
+  │                      fail ────────┤─ 4a. recordFailedAttempt → return 401
+  │                                   │
+  │                   success ────────┤─ 4b. clearFailedAttempts
+  │                                   ├─ 5.  sign JWT  { userId }
+  │◄── Set-Cookie: token=<jwt> ───────┤      httpOnly · secure · sameSite=strict
+  │                                   │
+  │── GET /api/ai/history/:id ───────►│
+  │   Cookie: token=<jwt>             ├─ 6. verify JWT → extract userId
+  │                                   ├─ 7. Chat.findOne({ _id, userId })
+  │                                   │      ↑ ownership check on every query
+  │◄── { messages } ─────────────────┤
 ```
 
 ### Security Checklist
 
-- [x] Passwords hashed with **bcrypt** (salt rounds: 12)
-- [x] JWT stored in **httpOnly cookie** — not localStorage (XSS safe)
-- [x] `secure: true` in production (HTTPS only)
-- [x] `sameSite: strict` (CSRF protection)
-- [x] All chat/message routes verify **userId ownership** before DB access
-- [x] Rate limiting on auth with **IP + email key** (not IP-only)
-- [x] Only failed login attempts count toward rate limit
-- [x] Redis failures **never block requests** (fail open with logging)
-- [x] File uploads validated by Multer (type + size limits)
-- [x] Environment secrets via `.env` — never hardcoded
+- [x] Passwords hashed with **bcrypt** — cost factor 12
+- [x] JWT stored in **httpOnly cookie** — inaccessible to JavaScript (XSS safe)
+- [x] `secure: true` in production — transmitted over HTTPS only
+- [x] `sameSite: strict` — blocks cross-site request forgery
+- [x] Every data route verifies **`userId` ownership** before any DB access
+- [x] Auth rate limit keyed by **`IP + email`** — not IP alone (NAT-safe)
+- [x] Only **failed** login attempts count toward the limit
+- [x] Rate limit counters in **Redis** — survive restarts, work across instances
+- [x] Redis failures **never block requests** — fail open with logging
+- [x] File uploads restricted by Multer (MIME type + size limits)
+- [x] All secrets in `.env` — zero hardcoded credentials
 
 ---
 
 ## Performance & Caching
 
-### Cache Strategy — Cache-Aside Pattern
+### Cache-Aside Pattern
 
 ```
-Request: GET /api/ai/history/:chatId
-         │
-         ▼
-  Check Redis ──► HIT ──► Return cached messages  (source: "cache")
-         │
-        MISS
-         │
-         ▼
-  Query MongoDB
-         │
-         ▼
-  Store in Redis  TTL: 300s (5 min)
-         │
-         ▼
-  Return messages  (source: "database")
+GET /api/ai/history/:chatId
+        │
+        ▼
+   Redis.get(key)
+        │
+   ┌────┴──────────────────────────────┐
+  HIT                                MISS
+   │                                   │
+   ▼                                   ▼
+Return JSON                     MongoDB.find()
+source: "cache"                        │
+                               Redis.set(key, TTL: 300s)
+                                       │
+                               Return JSON
+                               source: "database"
 ```
 
 ### Cache Invalidation
 
-Caches are invalidated immediately on any mutation:
+Caches are invalidated **immediately** on any write — stale reads are never possible.
 
-| Action | Keys Invalidated |
-|--------|-----------------|
-| Send message | `messages:{chatId}`, `chats:user:{userId}` |
-| Delete message | `messages:{chatId}` |
-| Clear chat | `messages:{chatId}` |
+| Event | Redis Keys Deleted |
+|-------|-------------------|
+| Message sent | `messages:{chatId}` · `chats:user:{userId}` |
+| Message deleted | `messages:{chatId}` |
+| Chat cleared | `messages:{chatId}` |
 | New chat created | `chats:user:{userId}` |
 
-### Frontend Performance
+### Why 5-Minute TTL?
 
-- **Session index** stored in `localStorage` — sidebar renders instantly
-- **Messages loaded on demand** — only when a chat is opened
-- **Typing effect** uses `setTimeout` drain loop at 8ms/3 chars — smooth without blocking UI thread
-- **Auto-scroll** uses passive scroll listener — never blocks scrolling
+Chat history is read-heavy and write-infrequent. A 5-minute window handles the common pattern of reopening the same chat repeatedly (e.g., on mobile). Writes always invalidate immediately, so TTL only affects read-only access — stale data is never a risk.
 
 ---
 
@@ -414,29 +459,35 @@ Caches are invalidated immediately on any mutation:
 
 ### Configuration
 
-```
-┌─────────────────┬──────────────────────────┬──────────────────────────┐
-│  Limiter        │  Key                     │  Limit                   │
-├─────────────────┼──────────────────────────┼──────────────────────────┤
-│  authLimiter    │  IP + email (lowercase)  │  7 failed / 10 min       │
-│  aiChatLimiter  │  userId (or IP fallback) │  15 requests / 60 sec    │
-└─────────────────┴──────────────────────────┴──────────────────────────┘
+| Limiter | Key | Limit | Counts |
+|---------|-----|-------|--------|
+| `authLimiter` | `IP + email` | 7 per 10 min | Failed requests only |
+| `aiChatLimiter` | `userId` (IP fallback) | 15 per 60 sec | All requests |
+
+### Implementation
+
+```javascript
+// express-rate-limit + rate-limit-redis
+export const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 7,
+  keyGenerator: (req) => `auth:${req.ip}:${req.body?.email?.toLowerCase()}`,
+  store: new RedisStore({ sendCommand: (...args) => redisClient.call(...args) }),
+  skipSuccessfulRequests: true,   // only failed logins count
+});
 ```
 
-### Why `IP + email` key for auth?
+### Why `IP + email` and not just IP?
 
-A pure IP-based key would block all users on the same network (offices, universities, mobile carriers with NAT) if a single account is attacked. Keying by `IP + email` ensures limits are per-account-per-origin.
+Office networks, universities, and mobile carriers use NAT — many users share one public IP. A pure IP key would lock out an entire building because one user mistyped their password. `IP + email` scopes the limit to one account from one origin.
 
 ### Why `skipSuccessfulRequests: true`?
 
-Without this, every login attempt (even successful ones) increments the counter. A legitimate user logging in 7 times would lock themselves out. With this flag, only `4xx`/`5xx` responses count.
+Without it, every login increments the counter — including successful ones. A user who logs in correctly 7 times gets locked out of their own account. This flag ensures only `4xx`/`5xx` responses count.
 
-### Redis Store
+### Why Redis store?
 
-Using `rate-limit-redis` instead of the default in-memory store ensures:
-- Limits persist across **server restarts**
-- Limits work correctly with **horizontal scaling** (multiple instances)
-- Shared state across all Node.js workers
+The default in-memory store resets on every server restart and doesn't share state across multiple instances. Redis store persists counters durably and works in any deployment topology.
 
 ---
 
@@ -446,123 +497,178 @@ Using `rate-limit-redis` instead of the default in-memory store ensures:
 
 | Direction | Event | Payload | Description |
 |-----------|-------|---------|-------------|
-| Server → Client | `new_message` | `Message` object | New user or AI message |
-| Server → Client | `ai:token` | `{ token: string }` | Streaming chunk (if enabled) |
-| Server → Client | `ai:done` | `{ chatId: string }` | Stream complete |
+| Server → Client | `new_message` | `Message` object | Broadcast to chat room |
+| Server → Client | `ai:token` | `{ token: string }` | Streaming chunk |
+| Server → Client | `ai:done` | `{ chatId: string }` | Stream finished |
 | Server → Client | `ai:error` | `{ message: string }` | Stream error |
 | Client → Server | `ai:stop` | `{ chatId: string }` | Stop generation |
 
-### Graceful Fallback
-
-If Socket.IO is unavailable (network issues, server cold start), the frontend automatically falls back to standard REST polling. The user experience is identical — only the latency differs slightly.
+### Graceful REST Fallback
 
 ```
-Socket connected?
-  YES → emit 'ai:chat' via WebSocket
-  NO  → POST /api/ai/chat via fetch()
+On login → connectSocket()
+                │
+         socket.connected?
+          YES            NO
+           │              │
+    WebSocket path    REST path
+    emit 'ai:chat'    POST /api/ai/chat
+                      (identical response shape)
 ```
+
+If Socket.IO fails, the client falls back to REST silently. Response handling is identical on both paths — the user sees no difference.
 
 ---
 
-## Frontend Architecture
+## Client (HTML/CSS/JS)
 
-The frontend is a **single-page application** built with zero dependencies — no React, no Vue, no bundler. This is a deliberate choice for simplicity and performance.
+The client is a **static single-page application** — three files, no build toolchain, no dependencies to install.
 
-### State Management
+```
+client/
+├── index.html   ~  300 lines   App shell, auth forms, chat layout
+├── style.css    ~  600 lines   Full UI, responsive, dark theme, animations
+└── app.js       ~ 1100 lines   All logic — auth, messaging, sockets, file handling
+```
+
+### Why no framework?
+
+Frameworks solve problems of scale: component reuse across large teams, complex state trees, server-side rendering. This client has one page, one state object, and a clear data flow. Vanilla JS is the right tool — zero build time, instant load, nothing to patch or update, and every line is directly auditable.
+
+### State Object
+
+All runtime state lives in a single plain object:
 
 ```javascript
 const state = {
-  user, authToken, socket,
-  currentSessionId,    // frontend localStorage key
-  currentChatId,       // backend MongoDB _id
-  chatSessions,        // in-memory + localStorage index
-  isStreaming,
-  attachedFiles,
-  stopRequested,
-  userScrolled,        // smart auto-scroll flag
+  user,               // logged-in user object from /api/auth/me
+  socket,             // Socket.IO instance (null if unavailable)
+  currentSessionId,   // localStorage key for the active session
+  currentChatId,      // MongoDB _id of the active backend chat
+  chatSessions,       // array, index persisted in localStorage
+  isStreaming,        // prevents double-sends during AI response
+  attachedFiles,      // staged files pending upload
+  stopRequested,      // true when Stop button clicked
+  userScrolled,       // true = user scrolled up → pause auto-scroll
 };
 ```
 
-### Session Lifecycle
+### Session & Chat ID Lifecycle
+
+The client uses two IDs per conversation — a local session key and the backend's MongoDB `_id`. They are separate because the backend chat doesn't exist until the first message is sent.
 
 ```
-User types message
-       │
-       ▼
-getOrCreateSession()    ← creates local session (no backend call yet)
-       │
-       ▼
-sendViaREST()
-       │
-       ▼
-POST /api/ai/chat       ← backend creates Chat document
-       │
-       ▼
-session.chatId = data.chat._id   ← persisted to localStorage
-       │
-       ▼
-Future messages use chatId → appended to same backend chat
+New Chat → currentSessionId = 'sess_...'  (localStorage key, local only)
+           currentChatId    = null
+
+First message sent
+        │
+        ▼
+POST /api/ai/chat  (no chatId in body — backend creates new Chat)
+        │
+        ▼
+data.chat._id returned
+        │
+        ▼
+session.chatId      = data.chat._id   ← saved to localStorage
+state.currentChatId = data.chat._id
+
+All subsequent messages
+        │
+        ▼
+POST /api/ai/chat  { chatId: session.chatId }
+Backend appends to the same Chat document
 ```
 
-### Multi-Modal File Flow
+### Multi-Modal File Handling
+
+Files are fully processed in the browser using the `FileReader` API before any network call:
 
 ```
 User attaches file
-       │
-       ├── Image  → FileReader → base64 dataUrl → preview + Anthropic vision block
-       ├── PDF    → FileReader → base64          → Anthropic document block
-       └── Text   → FileReader → raw text        → embedded in prompt
-                                     │
-                                     ▼
-                         POST https://api.anthropic.com/v1/messages
-                         content: [ image/document/text blocks... ]
-                                     │
-                                     ▼
-                         Also POST /api/ai/chat (backend saves history)
-                                     │
-                                     ▼
-                         AI reply piped through typewriter effect
+        │
+        ├─ Image  → readAsDataURL → base64
+        │           Sent as base64 string in message context
+        │
+        ├─ PDF    → readAsDataURL → base64
+        │           Extracted text sent inline in prompt
+        │
+        └─ Text   → readAsText → raw string
+                    Embedded inline in prompt as fenced code block
+
+All content assembled → POST /api/ai/chat  (backend → Groq API)
+```
+
+### Typewriter Effect
+
+AI responses render character-by-character using a queue-drain loop — no `setInterval` drift:
+
+```javascript
+// Characters pushed into queue as response arrives
+for (const ch of chunk) stream.typingQueue.push(ch);
+
+// Drain loop: 3 characters per tick at 8ms ≈ 375 chars/sec
+function drainTypingQueue() {
+  if (!stream.typingQueue.length) { stream.typingTimer = null; return; }
+  for (let i = 0; i < 3 && stream.typingQueue.length; i++)
+    stream.buffer += stream.typingQueue.shift();
+  stream.el.innerHTML = renderMarkdown(stream.buffer);
+  stream.typingTimer = setTimeout(drainTypingQueue, 8);
+}
 ```
 
 ---
 
 ## Design Decisions
 
-### Why vanilla JS for the frontend?
-No build step, no node_modules on the client, instant load time, and easier to audit. For a project of this scope, a framework would add complexity without meaningful benefit.
+**Why `httpOnly` cookie for JWT instead of `localStorage`?**
+`localStorage` is readable by any JavaScript on the page — one XSS vulnerability exposes every user's token permanently. `httpOnly` cookies are invisible to scripts; the browser sends them automatically and they cannot be read or stolen by injected code.
 
-### Why cookie-based JWT over localStorage?
-`httpOnly` cookies are inaccessible to JavaScript, making them immune to XSS attacks. `localStorage`-based tokens can be stolen by malicious scripts.
+**Why `IP + email` key for auth rate limiting?**
+A pure IP key harms users sharing a network (offices, universities, NAT routers). A pure email key lets one IP hammer unlimited accounts. `IP + email` is the right granularity — one account, one origin, one counter.
 
-### Why Redis for rate limiting instead of in-memory?
-In-memory rate limiters reset on restart and don't work across multiple server instances. Redis-backed limits are persistent, shared, and production-safe.
+**Why `skipSuccessfulRequests: true` on the auth limiter?**
+Without it, every login — including correct ones — increments the counter. A user who logs in 7 times successfully would lock themselves out. This flag ensures only `4xx`/`5xx` responses count toward the limit.
 
-### Why `IP + email` key for auth rate limiting?
-Pure IP-based limiting is too broad (harms shared networks) and pure email-based limiting is too narrow (a single IP can hammer many accounts). The combination is the correct granularity.
+**Why Redis for rate limit storage?**
+In-memory counters reset on restart and don't work across multiple processes. Redis persists counters and is shared across all instances — correct behaviour in any deployment from a single server to a load-balanced cluster.
 
-### Why cache-aside over write-through?
-Write-through would require caching every message on write — expensive and wasteful for messages that may never be re-read in the TTL window. Cache-aside only caches on read, which matches the actual access pattern.
+**Why cache-aside instead of write-through?**
+Write-through would cache every sent message, most of which are never re-read within the TTL. Cache-aside only populates the cache on a read miss, matching the actual access pattern: history is fetched when a chat is opened, not on every send.
+
+**Why vanilla JS for the client?**
+One page. One state object. One data flow. A framework adds a build pipeline, a dependency tree to audit, and abstractions that solve problems this project doesn't have. Vanilla JS has zero supply-chain risk, loads instantly, and every line of logic is directly readable.
 
 ---
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit your changes: `git commit -m 'feat: add your feature'`
-4. Push to the branch: `git push origin feature/your-feature`
-5. Open a Pull Request
+```bash
+# 1. Fork and clone
+git clone https://github.com/yourusername/nexus-ai.git
 
-Please follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages.
+# 2. Create a feature branch
+git checkout -b feat/your-feature-name
+
+# 3. Commit with Conventional Commits
+git commit -m "feat: add streaming token support"
+git commit -m "fix: rate limit key collision on shared IP"
+git commit -m "docs: update API reference for /history endpoint"
+
+# 4. Push and open a Pull Request
+git push origin feat/your-feature-name
+```
+
+Prefix guide: `feat` · `fix` · `docs` · `refactor` · `test` · `chore`
 
 ---
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for full text.
 
 ---
 
 <div align="center">
-  Built with ❤️ using Node.js, MongoDB, Redis
+  <sub>Node.js · Express · MongoDB · Redis · Socket.IO · Groq API</sub>
 </div>

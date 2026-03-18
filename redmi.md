@@ -9,6 +9,15 @@
 ![Socket.IO](https://img.shields.io/badge/Socket.IO-4.x-010101?style=flat-square&logo=socket.io)
 ![Groq](https://img.shields.io/badge/Groq-API-F55036?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-nexus__ai.oneapp.dev-4A90E2?style=flat-square&logo=vercel)](https://nexus_ai.oneapp.dev/)
+
+---
+
+## 🚀 Live Demo
+
+**[https://nexus_ai.oneapp.dev/](https://nexus_ai.oneapp.dev/)**
+
+Try the live deployment — register an account and start chatting with the AI instantly.
 
 ---
 
@@ -276,7 +285,8 @@ CLIENT_URL=http://localhost:4000
 
 ### Base URL
 ```
-http://localhost:4000
+https://nexus_ai.oneapp.dev   ← Production
+http://localhost:4000          ← Local development
 ```
 
 ### Authentication — `/api/auth`
@@ -671,4 +681,6 @@ MIT — see [LICENSE](LICENSE) for full text.
 
 <div align="center">
   <sub>Node.js · Express · MongoDB · Redis · Socket.IO · Groq API</sub>
+  <br><br>
+  <a href="https://nexus_ai.oneapp.dev/">🌐 Live at nexus_ai.oneapp.dev</a>
 </div>
